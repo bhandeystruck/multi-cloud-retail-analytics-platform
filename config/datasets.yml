@@ -1,0 +1,124 @@
+# ============================================================
+# Dataset configuration for the retail analytics platform.
+#
+# Airflow will read this file and dynamically create
+# ingestion, validation, loading, and transformation tasks.
+#
+# This keeps the pipeline extensible. To add a new dataset later,
+# we should only need to add a new block here instead of rewriting
+# the DAG logic.
+# ============================================================
+
+datasets:
+  - name: sales
+    description: Customer sales transactions across all retail channels.
+    source_format: json
+    bronze_table: bronze.raw_sales
+    silver_table: silver.sales
+    primary_key: order_id
+    partition_key: ordered_at
+    required_fields:
+      - order_id
+      - customer_id
+      - product_id
+      - store_id
+      - channel
+      - quantity
+      - unit_price
+      - total_amount
+      - order_status
+      - ordered_at
+
+  - name: products
+    description: Product catalog containing category, brand, and pricing data.
+    source_format: json
+    bronze_table: bronze.raw_products
+    silver_table: silver.products
+    primary_key: product_id
+    partition_key: created_at
+    required_fields:
+      - product_id
+      - product_name
+      - category
+      - brand
+      - cost_price
+      - selling_price
+      - is_active
+
+  - name: customers
+    description: Customer profile and loyalty data.
+    source_format: json
+    bronze_table: bronze.raw_customers
+    silver_table: silver.customers
+    primary_key: customer_id
+    partition_key: signup_date
+    required_fields:
+      - customer_id
+      - first_name
+      - last_name
+      - email
+      - country
+      - signup_date
+      - loyalty_tier
+
+  - name: stores
+    description: Physical, online, and marketplace retail locations.
+    source_format: json
+    bronze_table: bronze.raw_stores
+    silver_table: silver.stores
+    primary_key: store_id
+    partition_key: opened_at
+    required_fields:
+      - store_id
+      - store_name
+      - region
+      - city
+      - country
+      - store_type
+      - opened_at
+
+  - name: inventory
+    description: Product stock levels by store.
+    source_format: json
+    bronze_table: bronze.raw_inventory
+    silver_table: silver.inventory
+    primary_key: inventory_id
+    partition_key: last_updated_at
+    required_fields:
+      - inventory_id
+      - product_id
+      - store_id
+      - stock_quantity
+      - reorder_level
+      - last_updated_at
+
+  - name: campaigns
+    description: Marketing campaign budget and targeting data.
+    source_format: json
+    bronze_table: bronze.raw_campaigns
+    silver_table: silver.campaigns
+    primary_key: campaign_id
+    partition_key: start_date
+    required_fields:
+      - campaign_id
+      - campaign_name
+      - channel
+      - start_date
+      - end_date
+      - budget
+      - target_region
+
+  - name: returns
+    description: Product returns and refunds.
+    source_format: json
+    bronze_table: bronze.raw_returns
+    silver_table: silver.returns
+    primary_key: return_id
+    partition_key: returned_at
+    required_fields:
+      - return_id
+      - order_id
+      - product_id
+      - return_reason
+      - refund_amount
+      - returned_at

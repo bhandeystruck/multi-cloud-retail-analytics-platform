@@ -1,0 +1,94 @@
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# =========================
+# Virtual Environments
+# =========================
+
+.venv/
+venv/
+env/
+
+# =========================
+# Environment Files
+# =========================
+
+.env
+.env.local
+.env.*.local
+
+# Keep example env files in Git
+!.env.example
+
+# =========================
+# IDE / Editor
+# =========================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# OS Files
+# =========================
+
+.DS_Store
+Thumbs.db
+
+# =========================
+# Data Files
+# =========================
+
+data/generated/
+data/raw/
+data/tmp/
+*.csv
+*.parquet
+*.jsonl
+
+# Allow sample files later if needed
+!data/sample/
+
+# =========================
+# Docker / Local Volumes
+# =========================
+
+docker-data/
+minio-data/
+postgres-data/
+airflow-logs/
+airflow-plugins/
+
+# =========================
+# Logs
+# =========================
+
+*.log
+logs/
+
+# =========================
+# Credentials
+# =========================
+
+*.pem
+*.key
+*.crt
+service-account.json
+gcp-service-account.json
+aws-credentials.json
