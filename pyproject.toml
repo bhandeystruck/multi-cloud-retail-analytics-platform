@@ -1,11 +1,15 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "multi-cloud-retail-analytics-platform"
 version = "0.1.0"
-description = "A multi-cloud retail analytics data platform using Airflow, S3/MinIO, Redshift, GCS, BigQuery, FastAPI, Docker, and Jenkins."
+description = "Production-inspired multi-cloud retail analytics data platform using Airflow, S3/MinIO, Redshift, GCS, BigQuery, FastAPI, Docker, and Jenkins."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    { name = "Aditya Bhandari" }
+    { name = "Your Name" }
 ]
 
 dependencies = [
@@ -39,6 +43,39 @@ warehouse = [
     "google-cloud-bigquery>=3.25.0",
 ]
 
+# ============================================================
+# Setuptools package discovery
+#
+# Why this section exists:
+# Our repository has multiple top-level folders such as docs,
+# config, airflow, transformations, infrastructure, and api.
+#
+# Without this section, setuptools tries to guess which folders
+# are Python packages. Since there are many folders, it fails
+# to avoid accidentally packaging unwanted files.
+#
+# Here we explicitly tell setuptools which Python packages should
+# be included in editable installs.
+# ============================================================
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "ingestion*",
+    "storage*",
+    "warehouse*",
+    "api*",
+    "infrastructure*"
+]
+exclude = [
+    "docs*",
+    "config*",
+    "airflow*",
+    "transformations*",
+    "tests*",
+    "scripts*"
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
@@ -54,7 +91,7 @@ select = [
 ignore = []
 
 [tool.mypy]
-python_version = "3.13.3"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
