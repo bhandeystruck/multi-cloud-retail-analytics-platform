@@ -62,9 +62,8 @@ Analytics Consumers / Dashboards
 
 ```
 
-## High-Level Architecture
+## Local Development
 
-Local Development
 - Python 3.11+
 - Docker and Docker Compose
 - MinIO for S3-compatible object storage
