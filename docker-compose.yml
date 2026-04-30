@@ -1,0 +1,251 @@
+services:
+  # ============================================================
+  # PostgreSQL
+  #
+  # Purpose:
+  # - Simulates a local analytical warehouse.
+  # - Stores Airflow metadata in a separate database.
+  #
+  # Why PostgreSQL locally?
+  # - It is lightweight.
+  # - It supports SQL schemas similar to warehouse organization.
+  # - It lets us develop Bronze/Silver/Gold logic before using
+  #   Redshift or BigQuery.
+  # ============================================================
+
+  postgres:
+    image: postgres:16
+    container_name: retail_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-retail_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-retail_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-retail_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-retail_user} -d ${POSTGRES_DB:-retail_analytics}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - retail_platform_network
+
+
+  # ============================================================
+  # MinIO
+  #
+  # Purpose:
+  # - Simulates AWS S3 locally.
+  # - Stores raw Bronze files before they are loaded into the
+  #   warehouse.
+  #
+  # Access:
+  # - API:     http://localhost:9000
+  # - Console: http://localhost:9001
+  #
+  # Login:
+  # - Username: value of MINIO_ROOT_USER
+  # - Password: value of MINIO_ROOT_PASSWORD
+  # ============================================================
+
+  minio:
+    image: minio/minio:latest
+    container_name: retail_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - retail_platform_network
+
+
+  # ============================================================
+  # MinIO Bucket Initializer
+  #
+  # Purpose:
+  # - Automatically creates the retail-bronze bucket.
+  #
+  # Why this is useful:
+  # - Developers do not need to manually create the bucket from
+  #   the MinIO UI every time they rebuild the environment.
+  # ============================================================
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: retail_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
+      mc mb --ignore-existing local/${MINIO_BUCKET:-retail-bronze};
+      mc anonymous set none local/${MINIO_BUCKET:-retail-bronze};
+      echo 'MinIO bucket initialized successfully.';
+      "
+    networks:
+      - retail_platform_network
+
+
+  # ============================================================
+  # Airflow Initialization
+  #
+  # Purpose:
+  # - Explicitly migrates the Airflow metadata database.
+  # - Creates the local admin user.
+  #
+  # Why we use an explicit shell command:
+  # - It is easier to debug.
+  # - It avoids relying on hidden image entrypoint behavior.
+  # - It makes the setup clearer for portfolio/review purposes.
+  # ============================================================
+
+  airflow-init:
+    image: apache/airflow:2.9.3
+    container_name: retail_airflow_init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB:-airflow}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+    user: "${AIRFLOW_UID:-50000}:0"
+    command: >
+      bash -c "
+      airflow db migrate &&
+      airflow users create
+      --username ${AIRFLOW_ADMIN_USERNAME:-admin}
+      --password ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      --firstname ${AIRFLOW_ADMIN_FIRSTNAME:-Data}
+      --lastname ${AIRFLOW_ADMIN_LASTNAME:-Engineer}
+      --role Admin
+      --email ${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
+      || true
+      "
+    networks:
+      - retail_platform_network
+
+
+  # ============================================================
+  # Airflow Webserver
+  #
+  # Purpose:
+  # - Provides the Airflow UI.
+  #
+  # Access:
+  # - http://localhost:8080
+  # ============================================================
+
+  airflow-webserver:
+    image: apache/airflow:2.9.3
+    container_name: retail_airflow_webserver
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB:-airflow}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+    user: "${AIRFLOW_UID:-50000}:0"
+    command: webserver
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - retail_platform_network
+
+
+  # ============================================================
+  # Airflow Scheduler
+  #
+  # Purpose:
+  # - Continuously checks DAGs and schedules task runs.
+  #
+  # Why this is separate from the webserver:
+  # - The webserver only shows UI.
+  # - The scheduler actually runs and coordinates tasks.
+  # ============================================================
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.3
+    container_name: retail_airflow_scheduler
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_DB:-airflow}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+    user: "${AIRFLOW_UID:-50000}:0"
+    command: scheduler
+    networks:
+      - retail_platform_network
+
+
+# ============================================================
+# Volumes
+#
+# Volumes persist service data even if containers are restarted.
+# This prevents losing PostgreSQL data, MinIO files, and Airflow
+# logs every time Docker Compose restarts.
+# ============================================================
+
+volumes:
+  postgres_data:
+  minio_data:
+  airflow_logs:
+
+
+# ============================================================
+# Network
+#
+# A dedicated Docker network allows services to communicate by
+# service name, for example:
+#
+# - postgres:5432
+# - minio:9000
+#
+# This is cleaner than hardcoding container IP addresses.
+# ============================================================
+
+networks:
+  retail_platform_network:
+    driver: bridge
