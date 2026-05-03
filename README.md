@@ -72,7 +72,7 @@ Bronze -> Silver -> Gold
 Gold Analytics Models
         |
         v
-Future FastAPI Reporting API
+FastAPI Reporting API
         |
         v
 Dashboards / BI / API Consumers
@@ -116,7 +116,7 @@ Later phases are designed to map to:
 Current completed phase:
 
 ```text
-Step 9: Gold analytics models for business reporting
+Step 11: API Dockerization
 ```
 
 Completed so far:
@@ -131,12 +131,14 @@ Completed so far:
 [✓] Step 7: Bronze warehouse loader from MinIO to PostgreSQL
 [✓] Step 8: Silver transformations from raw JSONB to typed relational tables
 [✓] Step 9: Gold analytics models for business reporting
+[✓] Step 10: FastAPI reporting API
+[✓] Step 11: API Dockerization
 ```
 
 Next planned phase:
 
 ```text
-Step 10: FastAPI Reporting API
+Step 12: Airflow dynamic DAG orchestration
 ```
 
 ---
@@ -650,6 +652,108 @@ LIMIT 20;
 
 ---
 
+## FastAPI Reporting API
+
+After Gold tables are populated, start the reporting API:
+
+```bash
+uvicorn api.app.main:app --reload
+```
+
+API runs at:
+
+```text
+http://localhost:8000
+```
+
+Interactive docs at:
+
+```text
+http://localhost:8000/docs
+```
+
+### Available Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/` | Root — app name, environment, links |
+| GET | `/health` | Health check |
+| GET | `/api/v1/kpis/overview` | Latest executive KPI snapshot |
+| GET | `/api/v1/revenue/daily` | Daily revenue (filterable by date range) |
+| GET | `/api/v1/products/performance` | Product sales performance |
+| GET | `/api/v1/customers/lifetime-value` | Customer lifetime value |
+| GET | `/api/v1/inventory/risk` | Inventory risk by stock status |
+| GET | `/api/v1/campaigns/roi` | Campaign ROI metrics |
+
+Query parameters supported on list endpoints:
+
+```text
+start_date  YYYY-MM-DD filter
+end_date    YYYY-MM-DD filter
+limit       max rows returned (default 30, max 365)
+```
+
+All endpoints read directly from Gold analytics tables. No calculations happen inside the API layer.
+
+The API uses environment variables for database connection. Defaults match local Docker setup:
+
+```text
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=retail_analytics
+POSTGRES_USER=retail_user
+POSTGRES_PASSWORD=retail_password
+```
+
+---
+
+## API Dockerization
+
+The reporting API is containerized for reproducible local runs and future ECS/cloud deployment.
+
+Build the API image:
+
+```bash
+docker compose build api
+```
+
+Start all services including the API:
+
+```bash
+docker compose up -d
+```
+
+API available at:
+
+```text
+http://localhost:8000
+```
+
+### What the Dockerfile does
+
+- Base image: `python:3.11-slim`
+- Installs system deps: `gcc`, `libpq-dev`, `curl`
+- Copies project source and installs with `pip install -e ".[api,warehouse,storage]"`
+- Exposes port `8000`
+- Healthcheck hits `/health` every 30 seconds
+- Starts with `uvicorn api.app.main:app --host 0.0.0.0 --port 8000`
+
+Docker layer caching is optimized — `pyproject.toml` is copied before source so dependency installation is only re-run when dependencies change.
+
+Check API container health:
+
+```bash
+docker compose ps
+```
+
+View API logs:
+
+```bash
+docker compose logs api
+```
+
+---
+
 ## Useful Business Queries
 
 ### Executive KPIs
@@ -827,11 +931,11 @@ Completed:
 7. Bronze warehouse loader
 8. Silver transformations
 9. Gold analytics models
+10. FastAPI reporting API
+11. API Dockerization
 
 Next:
 
-10. FastAPI reporting API
-11. API Dockerization
 12. Airflow dynamic DAG orchestration
 13. Data quality checks
 14. Jenkins CI/CD
