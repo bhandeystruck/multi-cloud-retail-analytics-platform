@@ -31,6 +31,7 @@ Example:
 
 ```text
 run_id=20260430T104500Z
+```
 
 ## Object Storage Layer
 
@@ -38,3 +39,11 @@ The platform includes a provider-independent object storage interface located in
 
 ```text
 storage/object_storage_client.py
+```
+
+## Bronze Ingestion Pipeline
+
+The Bronze ingestion pipeline is implemented in:
+
+```text
+ingestion/ingest_to_object_storage.py

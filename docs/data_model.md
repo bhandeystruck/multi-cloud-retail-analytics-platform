@@ -180,3 +180,10 @@ Planned Gold models:
 | gold.inventory_risk | Low-stock and out-of-stock risks |
 | gold.campaign_roi | Marketing return on investment |
 | gold.executive_kpis | Executive summary metrics |
+
+## Local Warehouse Foundation
+
+The local warehouse is implemented in PostgreSQL and initialized with:
+
+```text
+warehouse/local_postgres/ddl/001_create_warehouse_schemas.sql
