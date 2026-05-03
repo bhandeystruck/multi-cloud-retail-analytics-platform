@@ -219,6 +219,49 @@ services:
     networks:
       - retail_platform_network
 
+  # ============================================================
+  # FastAPI Reporting API
+  #
+  # Purpose:
+  # - Exposes Gold analytics tables through REST endpoints.
+  # - Reads from PostgreSQL warehouse.
+  # - Provides reporting endpoints for dashboards or API consumers.
+  #
+  # Access:
+  # - API root: http://localhost:8000
+  # - Swagger docs: http://localhost:8000/docs
+  #
+  # Important:
+  # Inside Docker, POSTGRES_HOST must be "postgres", not "localhost".
+  # ============================================================
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: retail_reporting_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: docker
+      APP_NAME: multi-cloud-retail-analytics-platform
+      LOG_LEVEL: INFO
+
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-retail_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-retail_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-retail_password}
+
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    ports:
+      - "${API_PORT:-8000}:8000"
+    networks:
+      - retail_platform_network  
+
 
 # ============================================================
 # Volumes
