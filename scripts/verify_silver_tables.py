@@ -23,7 +23,6 @@ import psycopg2
 
 from scripts.init_local_warehouse import PostgresConfig
 
-
 SILVER_TABLES = [
     "products",
     "customers",
