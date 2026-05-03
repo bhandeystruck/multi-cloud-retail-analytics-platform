@@ -1,0 +1,3 @@
+"""
+Local PostgreSQL warehouse package.
+"""
