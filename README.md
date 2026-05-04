@@ -116,7 +116,7 @@ Later phases are designed to map to:
 Current completed phase:
 
 ```text
-Step 11: API Dockerization
+Step 12: Airflow End-to-End DAG Orchestration
 ```
 
 Completed so far:
@@ -133,12 +133,13 @@ Completed so far:
 [✓] Step 9: Gold analytics models for business reporting
 [✓] Step 10: FastAPI reporting API
 [✓] Step 11: API Dockerization
+[✓] Step 12: Airflow end-to-end DAG orchestration
 ```
 
 Next planned phase:
 
 ```text
-Step 12: Airflow dynamic DAG orchestration
+Step 13: Data quality checks
 ```
 
 ---
@@ -201,7 +202,8 @@ multi-cloud-retail-analytics-platform/
 |
 ├── airflow/
 │   └── dags/
-│       └── health_check_dag.py
+│       ├── health_check_dag.py
+│       └── retail_analytics_e2e_dag.py
 |
 ├── tests/
 │   ├── unit/
@@ -754,6 +756,110 @@ docker compose logs api
 
 ---
 
+## Airflow Orchestration
+
+The full pipeline is orchestrated by a single end-to-end Airflow DAG defined in `airflow/dags/retail_analytics_e2e_dag.py`.
+
+DAG ID: `retail_analytics_e2e_pipeline`
+
+### Pipeline Task Graph
+
+```text
+initialize_local_warehouse
+        ↓
+generate_source_data
+        ↓
+ingest_to_bronze_storage
+        ↓
+load_bronze_warehouse
+        ↓
+run_silver_transformations
+        ↓
+verify_silver_tables
+        ↓
+run_gold_transformations
+        ↓
+verify_gold_tables
+        ↓
+verify_api_queries
+```
+
+### Task Descriptions
+
+| Task ID | Script | Purpose |
+|---|---|---|
+| `initialize_local_warehouse` | `scripts/init_local_warehouse.py` | Creates Bronze/Silver/Gold/Ops schemas and tables |
+| `generate_source_data` | `ingestion/generate_retail_data.py` | Generates realistic JSON retail datasets |
+| `ingest_to_bronze_storage` | `ingestion/ingest_to_object_storage.py` | Uploads JSON files to MinIO Bronze bucket |
+| `load_bronze_warehouse` | `scripts/load_bronze_warehouse.py` | Loads Bronze files from MinIO into PostgreSQL raw tables |
+| `run_silver_transformations` | `scripts/run_silver_transformations.py` | Transforms JSONB Bronze records into typed Silver tables |
+| `verify_silver_tables` | `scripts/verify_silver_tables.py` | Asserts Silver row counts and data presence |
+| `run_gold_transformations` | `scripts/run_gold_transformations.py` | Builds Gold analytics models from Silver |
+| `verify_gold_tables` | `scripts/verify_gold_tables.py` | Asserts Gold row counts and data presence |
+| `verify_api_queries` | `scripts/verify_api_queries.py` | Validates that Gold tables serve API queries correctly |
+
+### DAG Configuration
+
+| Setting | Value |
+|---|---|
+| Schedule | Manual trigger only (`schedule=None`) |
+| Catchup | Disabled |
+| Max active runs | 1 |
+| Retries per task | 2 |
+| Retry delay | 2 minutes |
+
+### Default Data Scale
+
+The DAG generates a standard production-representative dataset:
+
+```text
+Products:   100
+Customers:  500
+Stores:     20
+Campaigns:  12
+Sales:      2000
+Inventory:  500
+Return rate: 8%
+```
+
+### Trigger the DAG
+
+Via Airflow UI at `http://localhost:8080`:
+
+1. Navigate to DAGs
+2. Find `retail_analytics_e2e_pipeline`
+3. Click the play button to trigger manually
+
+Via Airflow CLI:
+
+```bash
+docker exec -it retail_airflow airflow dags trigger retail_analytics_e2e_pipeline
+```
+
+Monitor run status:
+
+```bash
+docker exec -it retail_airflow airflow dags list-runs --dag-id retail_analytics_e2e_pipeline
+```
+
+View task logs in Airflow UI under Browse → Task Instances.
+
+### Run ID Templating
+
+The `ingest_to_bronze_storage` task passes the Airflow execution timestamp as the run ID using Jinja templating:
+
+```text
+--run-id {{ ts_nodash }}
+```
+
+This ensures each DAG run writes Bronze files to a unique partition:
+
+```text
+bronze/{dataset}/dt={YYYY-MM-DD}/run_id={ts_nodash}/{dataset}.json
+```
+
+---
+
 ## Useful Business Queries
 
 ### Executive KPIs
@@ -933,11 +1039,11 @@ Completed:
 9. Gold analytics models
 10. FastAPI reporting API
 11. API Dockerization
+12. Airflow dynamic DAG orchestration
 
 Next:
 
-12. Airflow dynamic DAG orchestration
-13. Data quality checks
+13. Data quality checks (pipeline assertions, row count checks, null rate validation)
 14. Jenkins CI/CD
 15. AWS S3 and Redshift support
 16. GCP GCS and BigQuery replication
