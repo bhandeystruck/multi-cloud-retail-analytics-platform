@@ -19,7 +19,6 @@ import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-
 BASE_URL = "http://localhost:8000"
 
 ENDPOINTS = [
